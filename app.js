@@ -83,7 +83,7 @@
     b.deck = prefs.deck; b.bg = prefs.bg; b.record = prefs.record; b.label = prefs.label;
     document.documentElement.style.setProperty('--spin', prefs.rpm === '45' ? '1.33s' : '1.8s');
     $('clock').hidden = prefs.clock !== 'on';
-    renderLabel(); clockTick(); drawDisc(); applyColors(state.art);
+    renderLabel(); clockTick(); applyColors(state.art);   // applyColors redraws the record
     store.set('prefs', JSON.stringify(prefs));
   }
 
@@ -246,7 +246,8 @@
     drawGrooves(x, S, r, style === 'black');
     x.restore();
   }
-  addEventListener('resize', () => { clearTimeout(drawDisc.t); drawDisc.t = setTimeout(drawDisc, 200); });
+  const redrawSoon = () => { clearTimeout(drawDisc.t); drawDisc.t = setTimeout(drawDisc, 200); };
+  addEventListener('resize', redrawSoon);
 
   // ---------- UI ----------
   const record = $('record'), arm = $('arm'), label = $('label');
@@ -268,10 +269,11 @@
   }
   // The cover (folded photo + landscape sleeve) updates right away; the record and colors follow its swap animation.
   let coverReady = Promise.resolve();
+  const cssUrl = u => 'url("' + String(u).replace(/["\\\n]/g, encodeURIComponent) + '")';
   function renderCover(){
     const art = state.art, sleeve = $('sleeve'), jacket = $('jacket');
     if (!art) { sleeve.replaceChildren(); jacket.replaceChildren(); coverReady = Promise.resolve(); return; }
-    const bg = new Image(); bg.alt = ''; bg.className = 'bg'; bg.src = art;
+    const bg = document.createElement('div'); bg.className = 'bg'; bg.style.backgroundImage = cssUrl(art);
     const fr = new Image(); fr.alt = 'Album cover'; fr.className = 'front'; fr.src = art;
     const jk = new Image(); jk.alt = 'Album cover'; jk.src = art;
     const ready = Promise.race([Promise.all([fr, jk].map(i => i.decode ? i.decode().catch(() => {}) : null)), new Promise(r => setTimeout(r, 700))]);
@@ -367,8 +369,9 @@
       const imgs = n.album?.images || n.images || n.show?.images || [];
       const url = (imgs[1] || imgs[0] || {}).url || '';
       const el = document.createElement('div'); el.className = 'spine';
-      el.innerHTML = (url ? '<img class="sbg" alt="" src="' + esc(url) + '"><img class="sart" alt="" src="' + esc(url) + '">' : '') +
+      el.innerHTML = (url ? '<div class="sbg"></div><img class="sart" alt="" src="' + esc(url) + '">' : '') +
         '<div class="stxt"><b>' + esc(n.name) + '</b><span>' + esc(trackInfo(n).artist) + '</span></div>';
+      if (url) el.querySelector('.sbg').style.backgroundImage = cssUrl(url);
       el.setAttribute('role', 'button'); el.setAttribute('aria-label', 'Up next: ' + n.name + '. Tap to skip ahead.');
       el.onclick = () => skip(i + 1);
       return el;
@@ -403,14 +406,17 @@
   async function control(method, path, optimistic, body, quiet){
     seq++;
     if (optimistic) optimistic();
+    let ok = false;
     try {
       const r = await api(method, path, body);
+      ok = r.ok;
       if (r.status === 403) flash('This needs Spotify Premium. The record display still works.', true);
       else if (r.status === 404) flash('Open the Spotify app on this phone and start a song first.', true);
       else if (r.status === 429) flash('Spotify asked us to slow down. Try again in a moment.', true);
       else if (!r.ok) flash('Spotify didn\'t accept that (' + await apiError(r) + ').', true);
     } catch {}
     if (!quiet) { clearTimeout(control.t); control.t = setTimeout(poll, 700); }
+    return ok;
   }
   function togglePlay(){
     state.playing
@@ -430,8 +436,12 @@
   // Shuffle and repeat change what plays next, so drop the cached queue and fetch the new order once Spotify has applied it.
   function refreshQueueSoon(){ queue = []; renderQueue(); clearTimeout(refreshQueueSoon.t); refreshQueueSoon.t = setTimeout(loadQueue, 1200); }
   function setRepeat(m){ state.repeat = m; $('repeat').classList.toggle('on', m !== 'off'); $('repeatOne').hidden = m !== 'track'; $('repeat').setAttribute('aria-label', 'Repeat: ' + ({ off:'off', context:'all', track:'this song' }[m])); }
-  $('shuffle').onclick = async () => { const v = !state.shuffle; await control('PUT', '/me/player/shuffle?state=' + v, () => setShuffle(v)); flash(v ? 'Shuffle on' : 'Shuffle off'); refreshQueueSoon(); };
-  $('repeat').onclick = () => { const m = { off:'context', context:'track', track:'off' }[state.repeat]; control('PUT', '/me/player/repeat?state=' + m, () => setRepeat(m)).then(refreshQueueSoon); };
+  $('shuffle').onclick = async () => {
+    const v = !state.shuffle;
+    if (await control('PUT', '/me/player/shuffle?state=' + v, () => setShuffle(v))) { flash(v ? 'Shuffle on' : 'Shuffle off'); refreshQueueSoon(); }
+    else setShuffle(!v);
+  };
+  $('repeat').onclick = () => { const prev = state.repeat, m = { off:'context', context:'track', track:'off' }[state.repeat]; control('PUT', '/me/player/repeat?state=' + m, () => setRepeat(m)).then(ok => ok ? refreshQueueSoon() : setRepeat(prev)); };
 
   // liked songs
   function setLiked(on){
@@ -467,21 +477,24 @@
   };
 
   // ---------- library: Liked Songs + playlists ----------
-  const lib = { tab:'liked', next:null, items:[], playlist:null };
+  const lib = { tab:'liked', next:null, items:[], playlist:null, view:0 };
   const thumb = imgs => { imgs = imgs || []; return (imgs[imgs.length - 1] || imgs[0] || {}).url || ''; };
   function libRow(img, title, sub, onTap, now){
     const b = document.createElement('button'); b.className = 'libitem' + (now ? ' now' : '');
     b.innerHTML = (img ? '<img alt="" loading="lazy" src="' + esc(img) + '">' : '<span class="ph"></span>') + '<span class="tx"><b>' + esc(title) + '</b><small>' + esc(sub || '') + '</small></span>';
     b.onclick = onTap; return b;
   }
-  function libReset(){ lib.next = null; lib.items = []; $('libList').replaceChildren(); $('libMsg').textContent = ''; $('libMore').hidden = true; }
+  function libReset(){ lib.view++; lib.next = null; lib.items = []; $('libList').replaceChildren(); $('libMsg').textContent = ''; $('libMore').hidden = true; }
   async function libLoad(path){
     $('libMore').hidden = true;
+    const view = lib.view;
     try {
       const j = await getJSON(path);
+      if (view !== lib.view) return [];          // the user switched lists while this was loading
       lib.next = j && j.next; $('libMore').hidden = !lib.next;
       return (j && j.items) || [];
     } catch (e) {
+      if (view !== lib.view) return [];
       $('libMsg').textContent = e.status === 403 && /scope/i.test(e.message) ? 'Spotify needs one more permission. Open Settings and tap Reconnect Spotify.' : 'Spotify wouldn\'t share this list (' + e.message + ').';
       return [];
     }
@@ -523,7 +536,7 @@
     [...$('libTabs').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === lib.tab)));
   }
   async function startPlayback(body){
-    const r = await api('PUT', '/me/player/play', body);
+    let r; try { r = await api('PUT', '/me/player/play', body); } catch { return; }
     if (r.ok) { $('library').hidden = true; seq++; setTimeout(poll, 700); refreshQueueSoon(); return; }
     flash(r.status === 404 ? 'Open the Spotify app on this phone first, then try again.' : r.status === 403 ? 'Playing from the library needs Spotify Premium.' : 'Spotify couldn\'t start that (' + await apiError(r) + ').', true);
     $('libMsg').textContent = $('status').textContent;
@@ -537,7 +550,7 @@
   $('libPlayAll').onclick = () => lib.playlist && playContext(lib.playlist.uri);
   $('libMore').onclick = () => { if (!lib.next) return; lib.playlist ? openPlaylist(lib.playlist, lib.next) : lib.tab === 'liked' ? showLiked(lib.next) : showPlaylists(lib.next); };
 
-
+  // ---------- speakers ----------
   async function openDevices(){
     $('devices').hidden = false; $('deviceList').innerHTML = '<p>Looking for speakers…</p>';
     try {
@@ -642,7 +655,7 @@
   function openSettings(msg){ $('settings').hidden = false; $('settingsMsg').textContent = msg || ''; renderSettings(); }
   $('gear').onclick = () => signedIn() ? openSettings() : showSetup();
   $('closeSettings').onclick = () => { $('settings').hidden = true; wakeUI(); };
-  $('reconnect').onclick = () => login(store.get('clientId'));
+  $('reconnect').onclick = () => { const id = store.get('clientId'); if (id) login(id); else { $('settings').hidden = true; showSetup('Paste your Client ID to connect again.'); } };
   $('logout').onclick = () => { ['access','refresh','expires','scope'].forEach(k => store.set(k, null)); queue = []; $('settings').hidden = true; show(null); showSetup(); };
 
   // ---------- swipe on the album art to change songs ----------
@@ -747,16 +760,28 @@
     if (segMQ.matches || postureMQ.matches) return true;
     return !!(navigator.devicePosture && navigator.devicePosture.type === 'folded' && innerHeight > innerWidth * 0.9);
   }
+  // iOS 26 Home Screen apps (WebKit bug 301108) can get a viewport shorter than the screen, leaving an unpainted strip
+  // at the bottom. In standalone mode, measure the shortfall against the real screen and extend the app by it.
+  const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
   function setAppHeight(){
-    const h = Math.round(Math.max(innerHeight, document.documentElement.clientHeight, (window.visualViewport && visualViewport.height) || 0));
-    document.documentElement.style.setProperty('--app-h', h + 'px');
+    const vh = Math.round(Math.max(innerHeight, document.documentElement.clientHeight, (window.visualViewport && visualViewport.height) || 0));
+    let gap = 0;
+    if (standalone && screen.width && screen.height) {
+      const landscape = innerWidth > innerHeight;
+      const full = landscape ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+      const shortfall = Math.round(full - vh);
+      if (shortfall > 0 && shortfall <= 160) gap = shortfall;   // cap: never trust a wild reading
+    }
+    document.documentElement.style.setProperty('--gap', gap + 'px');
+    document.documentElement.style.setProperty('--app-h', (vh + gap) + 'px');
+    return vh + gap;
   }
   if (window.visualViewport) visualViewport.addEventListener('resize', () => { setAppHeight(); applyFold(); });
   function applyFold(){
-    setAppHeight();
+    const fullH = setAppHeight();
     const folded = foldMode === 'on' || (foldMode === 'auto' && deviceFolded());
     document.body.classList.toggle('folded', folded);
-    document.documentElement.style.setProperty('--hinge', (folded && hingeFromDevice()) || Math.round(Math.max(innerHeight, (window.visualViewport && visualViewport.height) || 0) / 2) + 'px');
+    document.documentElement.style.setProperty('--hinge', (folded && hingeFromDevice()) || Math.round(fullH / 2) + 'px');
     $('foldBtn').setAttribute('aria-pressed', String(folded));
     wakeUI();
   }
@@ -768,7 +793,7 @@
   if (navigator.devicePosture) navigator.devicePosture.addEventListener('change', applyFold);
   addEventListener('resize', applyFold);
   // iOS can report the pre-rotation size for a moment; measure again once the rotation settles.
-  addEventListener('orientationchange', () => { [150, 500, 1000].forEach(ms => setTimeout(() => { applyFold(); drawDisc(); }, ms)); });
+  addEventListener('orientationchange', () => { [150, 500, 1000].forEach(ms => setTimeout(() => { applyFold(); redrawSoon(); }, ms)); });
 
   // keep the screen awake while showing
   async function wake(){ try { if ('wakeLock' in navigator && !document.hidden) await navigator.wakeLock.request('screen'); } catch {} }
