@@ -53,10 +53,10 @@ body[data-bg="album"]{
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{background:#111; color:var(--ink); font-family:var(--f-body); -webkit-font-smoothing:antialiased; overflow:hidden;
+body{background:#0b0b0c; color:var(--ink); font-family:var(--f-body); -webkit-font-smoothing:antialiased; overflow:hidden;
   -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none}
 [hidden]{display:none!important}
-.plinth{position:fixed; inset:0; background:var(--plinth); transition:background .8s;
+.plinth{position:fixed; top:0; left:0; right:0; height:var(--app-h,100%); background:var(--plinth); transition:background .8s;
   padding:calc(env(safe-area-inset-top,0px) + 52px) max(20px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 16px) max(20px,env(safe-area-inset-left,0px));
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px}
 .lower{display:contents}
@@ -64,7 +64,7 @@ body{background:#111; color:var(--ink); font-family:var(--f-body); -webkit-font-
 .jacket{display:none}
 
 /* ---------- turntable ---------- */
-.deck{position:relative; width:min(90vw, 56vh, 560px); aspect-ratio:1/1; flex:none; container-type:inline-size; cursor:pointer}
+.deck{position:relative; width:min(90vw, calc(var(--app-h,100vh) * .52), 560px); aspect-ratio:1/1; flex:none; container-type:inline-size; cursor:pointer}
 .platter{position:absolute; inset:2%; border-radius:50%;
   background:radial-gradient(circle, var(--platter-a) 0 60%, var(--platter-b) 61% 100%);
   box-shadow:0 18px 40px rgba(0,0,0,.5), inset 0 0 0 3px rgba(255,255,255,.12), inset 0 0 0 6px rgba(0,0,0,.4);
@@ -76,19 +76,7 @@ body{background:#111; color:var(--ink); font-family:var(--f-body); -webkit-font-
   animation:spin var(--spin) linear infinite; animation-play-state:paused}
 .record.playing{animation-play-state:running}
 @keyframes spin{to{transform:rotate(360deg)}}
-/* album-colored marbled vinyl */
-body[data-record="album"] .record{
-  background:
-    repeating-radial-gradient(circle, rgba(0,0,0,.22) 0 1px, rgba(255,255,255,.035) 1px 2.4px),
-    radial-gradient(38% 16% at 28% 30%, color-mix(in srgb, var(--c2) 85%, #fff 15%), transparent 70%),
-    radial-gradient(22% 40% at 74% 38%, var(--c1d), transparent 70%),
-    radial-gradient(30% 14% at 60% 78%, color-mix(in srgb, var(--c2) 80%, #fff 20%), transparent 70%),
-    radial-gradient(18% 30% at 22% 72%, var(--c1d), transparent 70%),
-    radial-gradient(26% 12% at 50% 12%, var(--c2), transparent 70%),
-    conic-gradient(from 30deg, var(--c1), color-mix(in srgb, var(--c1) 70%, var(--c2)), var(--c1), color-mix(in srgb, var(--c1) 60%, #000), var(--c1));
-  box-shadow:inset 0 0 0 2px rgba(255,255,255,.10), inset 0 0 30px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.6)}
-body[data-record="picture"] .record{
-  background:repeating-radial-gradient(circle, rgba(0,0,0,.18) 0 1px, rgba(255,255,255,.04) 1px 2.4px), var(--art, #333) center/cover}
+.record canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
 body[data-record="picture"] .label{display:none}
 .sheen{position:absolute; inset:4%; border-radius:50%; pointer-events:none;
   background:conic-gradient(from 20deg, transparent 0 8%, rgba(255,255,255,.12) 12%, transparent 18% 50%, rgba(255,255,255,.09) 62%, transparent 68%);
@@ -183,14 +171,28 @@ body.folded .cover .sleeve{position:absolute; inset:0; background:var(--c1);
 body.folded .cover .bg{position:absolute; inset:-40px; width:calc(100% + 80px); height:calc(100% + 80px); object-fit:cover; filter:blur(28px) saturate(1.3) brightness(.75)}
 body.folded .cover .front{position:absolute; left:50%; top:50%; height:calc(100% - 48px - env(safe-area-inset-top,0px)); max-width:calc(100% - 40px); aspect-ratio:1/1; object-fit:cover;
   transform:translate(-50%,calc(-50% + env(safe-area-inset-top,0px) / 2)); box-shadow:0 18px 40px rgba(0,0,0,.55); z-index:1}
+body.folded .flow{position:absolute; z-index:1; top:calc(24px + env(safe-area-inset-top,0px)); height:calc(var(--hinge,50vh) - 48px - env(safe-area-inset-top,0px));
+  left:calc(50% + (var(--hinge,50vh) - 48px - env(safe-area-inset-top,0px)) / 2 + 22px); right:0; display:flex; gap:16px; perspective:900px; pointer-events:none}
+.flow{display:none}
+.spine{flex:none; height:100%; width:calc((var(--hinge,50vh) - 48px) * .15); position:relative; overflow:hidden; border-radius:2px; pointer-events:auto; cursor:pointer;
+  transform:rotateY(-24deg); transform-origin:left center; box-shadow:10px 14px 30px rgba(0,0,0,.5); background:#222}
+.spine:nth-child(2){opacity:.45; filter:blur(1px)} .spine:nth-child(3){opacity:.2; filter:blur(2px)}
+.spine .sbg{position:absolute; inset:-20px; width:calc(100% + 40px); height:calc(100% + 40px); object-fit:cover; filter:blur(10px) brightness(.55) saturate(1.2)}
+.spine .sart{position:absolute; left:12%; right:12%; top:6%; aspect-ratio:1; width:76%; object-fit:cover; box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.spine .stxt{position:absolute; left:0; right:0; top:calc(6% + 90%*0); bottom:6%; display:flex; justify-content:center; padding-top:calc(76% + 14%);
+  writing-mode:vertical-rl; color:#fff; font-size:clamp(11px,1.7vw,14px); line-height:1.25; white-space:nowrap; overflow:hidden}
+.spine .stxt b{font-weight:700; margin-bottom:.6em}
+.spine .stxt span{opacity:.75}
 body.folded .cover::after{content:""; position:absolute; inset:auto 0 0 0; height:35%; pointer-events:none; background:linear-gradient(to bottom, transparent, rgba(0,0,0,.6))}
 body.folded .swipehint{display:block; position:absolute; left:0; right:0; bottom:6px; z-index:2; text-align:center; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.75); pointer-events:none; transition:opacity .6s}
 .swipehint.gone{opacity:0!important}
-body.folded .lower{display:flex; flex-direction:row; align-items:center; justify-content:center; gap:clamp(16px,4vw,40px); min-height:0;
+body.folded .lower{display:flex; flex-direction:row; align-items:center; justify-content:center; gap:clamp(12px,3vw,32px); min-height:0; overflow:hidden;
   padding:16px max(20px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(20px,env(safe-area-inset-left,0px));
   border-top:1px solid rgba(0,0,0,.35)}
-body.folded .deck{width:min(calc(100dvh - var(--hinge,50dvh) - 36px - env(safe-area-inset-bottom,0px)), 44vw)}
-body.folded .panel{width:auto; flex:1; max-width:400px; min-width:0; gap:8px}
+body.folded .deck{width:min(calc(var(--app-h,100dvh) - var(--hinge,50dvh) - 36px - env(safe-area-inset-bottom,0px)), 40vw, calc(100vw - 370px))}
+body.folded .panel{width:auto; flex:1 1 0; max-width:420px; min-width:0; gap:8px; overflow:hidden}
+body.folded .title{font-size:clamp(18px,3.6vw,28px)}
+body.folded .controls{gap:clamp(0px,1.6vw,16px)} body.folded .controls .btn:not(.play){padding:6px}
 body.folded .meta{text-align:left}
 body.folded .controls, body.folded .extras{justify-content:flex-start}
 body.folded .btn.play{width:54px; height:54px}
@@ -198,7 +200,8 @@ body.folded .topbtn{top:calc(var(--hinge,50dvh) + 6px)}
 body.folded .clock{top:calc(env(safe-area-inset-top,0px) + 14px); left:max(20px,env(safe-area-inset-left,0px)); transform:none; font-size:clamp(34px,7vw,64px); color:#fff; text-shadow:0 2px 12px rgba(0,0,0,.6); z-index:4}
 body.folded .clock small{color:rgba(255,255,255,.8)}
 @media (max-width:520px){
-  body.folded .deck{width:min(calc(100dvh - var(--hinge,50dvh) - 36px - env(safe-area-inset-bottom,0px)), 34vw)}
+  body.folded .deck{width:min(calc(var(--app-h,100dvh) - var(--hinge,50dvh) - 36px - env(safe-area-inset-bottom,0px)), 34vw)}
+  body.folded .extras{gap:0}
   body.folded .controls, body.folded .extras{gap:2px} body.folded .btn.play{width:46px;height:46px}
 }
 
@@ -264,21 +267,21 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
 }
 </style>
 </head>
-<body data-deck="walnut" data-bg="album" data-record="album" data-label="printed">
+<body data-deck="walnut" data-bg="album" data-record="mix" data-label="printed">
 <main class="plinth">
   <button class="btn topbtn" id="gear" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.3 2.9a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 0 0 1.7 1L11 21h4l.3-2.9a7.6 7.6 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>
   <button class="btn topbtn" id="foldBtn" aria-label="Folded layout" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 3h16v8H4zm2 2v4h12V5zM2 12h20l-2 9H4zm2.5 2 1.1 5h12.8l1.1-5z"/></svg></button>
   <button class="btn topbtn" id="beatBtn" aria-label="Pulse to the beat" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2 12h4l2-6 4 13 3-9 2 2h5v2h-6l-1-1-3 9-4-13-1 3H2z"/></svg></button>
   <div class="clock" id="clock" hidden></div>
 
-  <div class="cover" id="cover"><div class="sleeve" id="sleeve"></div><div class="swipehint" id="swipeHint">Swipe to change songs</div></div>
+  <div class="cover" id="cover"><div class="sleeve" id="sleeve"></div><div class="flow" id="flow"></div><div class="swipehint" id="swipeHint">Swipe to change songs</div></div>
 
   <div class="lower">
     <div class="stage">
       <div class="jacket" id="jacket"></div>
       <div class="deck" id="deck" role="button" aria-label="Tap the record to play or pause">
         <div class="platter"></div>
-        <div class="record" id="record"><div class="label" id="label"></div></div>
+        <div class="record" id="record"><canvas id="disc"></canvas><div class="label" id="label"></div></div>
         <div class="sheen"></div>
         <div class="spindle"></div>
         <div class="arm" id="arm"><div class="rod"><div class="head"></div></div><div class="base"></div><div class="cap"></div></div>
@@ -411,15 +414,16 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
   }
 
   // ---------- preferences ----------
-  const DEFAULTS = { deck:'walnut', bg:'album', record:'album', label:'printed', rpm:'33', clock:'off', dim:'off' };
+  const DEFAULTS = { deck:'walnut', bg:'album', record:'mix', label:'printed', rpm:'33', clock:'off', dim:'off' };
   let prefs = { ...DEFAULTS };
   try { Object.assign(prefs, JSON.parse(store.get('prefs') || '{}')); } catch {}
+  if (prefs.record === 'album') prefs.record = 'mix';
   function applyPrefs(){
     const b = document.body.dataset;
     b.deck = prefs.deck; b.bg = prefs.bg; b.record = prefs.record; b.label = prefs.label;
     document.documentElement.style.setProperty('--spin', prefs.rpm === '45' ? '1.33s' : '1.8s');
     $('clock').hidden = prefs.clock !== 'on';
-    renderLabel(); clockTick();
+    renderLabel(); clockTick(); drawDisc();
     store.set('prefs', JSON.stringify(prefs));
   }
 
@@ -450,7 +454,9 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
           const q = list.find(e => dist(e.col, p.col) > 70) || p;
           const vivid = (q.s > p.s ? q : p);
           const [h,s] = rgb2hsl(...vivid.col);
-          const out = { c1:hex(p.col), c2:hex(q.col), c1d:hex(p.col.map(v => v*.45)), accent:hsl2hex(h, Math.min(.75, s + .1), .68), ink: p.l > .55 ? '#141414' : '#f1efea' };
+          const byL = list.slice(0, 12).slice().sort((a,b) => a.l - b.l);
+          const out = { c1:hex(p.col), c2:hex(q.col), c1d:hex(p.col.map(v => v*.45)), accent:hsl2hex(h, Math.min(.75, s + .1), .68), ink: p.l > .55 ? '#141414' : '#f1efea',
+            pal:{ main:p.col, second:q.col, vivid:vivid.col, dark:byL[0].col, light:byL[byL.length-1].col, lum:list.reduce((t,e) => t + e.l*e.n, 0) / 1024 } };
           colorCache[url] = out; res(out);
         } catch { res(null); }
       };
@@ -462,11 +468,122 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
     const root = document.documentElement.style;
     const c = url ? await analyze(url) : null;
     if (url && url !== state.art) return;
-    const v = c || { c1:'#1b1b1d', c2:'#3a3a3e', c1d:'#0e0e10', accent:'#d9d9de', ink:'#e8e8e8' };
+    const v = c || { c1:'#1b1b1d', c2:'#3a3a3e', c1d:'#0e0e10', accent:'#d9d9de', ink:'#e8e8e8', pal:null };
+    palette = v.pal; drawDisc();
     root.setProperty('--c1', v.c1); root.setProperty('--c2', v.c2); root.setProperty('--c1d', v.c1d);
     root.setProperty('--c-accent', v.accent); root.setProperty('--label-ink', v.ink);
     const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = prefs.bg === 'album' ? v.c1d : '#111';
   }
+
+  // ---------- the record itself, drawn on a canvas ----------
+  let palette = null, artImg = null;
+  const hashStr = str => { let h = 2166136261; for (const ch of String(str)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const rgba = (c, a) => 'rgba(' + c.map(v => Math.round(Math.max(0, Math.min(255, v)))).join(',') + ',' + a + ')';
+  const mixc = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+  function withL(c, l){ const [h, s0] = rgb2hsl(...c); const hx = hsl2hex(h, Math.min(s0, .55), l); return [1,3,5].map(i => parseInt(hx.substr(i, 2), 16)); }
+  function recordStyle(){
+    if (prefs.record !== 'mix') return prefs.record;
+    return rng(hashStr((state.art || state.id || 'v') + 'style'))() < .5 ? 'splatter' : 'marble';
+  }
+  function noiseField(r, oct = 5){
+    const G = 64, g = new Float32Array(G * G); for (let i = 0; i < g.length; i++) g[i] = r();
+    const sm = t => t * t * (3 - 2 * t);
+    const vn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = sm(x - xi), yf = sm(y - yi);
+      const at = (a, b) => g[((b & 63) * G) + (a & 63)];
+      const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
+      return a + (b - a) * xf + (c - a) * yf + (a - b - c + d) * xf * yf; };
+    return (x, y) => { let v = 0, amp = .5, f = 1; let tot = 0; for (let o = 0; o < oct; o++) { v += vn(x * f, y * f) * amp; tot += amp; f *= 2; amp *= .5; } return v / tot; };
+  }
+  function drawMarble(x, S, P, r){
+    const N = 220, off = document.createElement('canvas'); off.width = off.height = N;
+    const ox = off.getContext('2d'), im = ox.createImageData(N, N), d = im.data;
+    const fb = noiseField(r, 3), fb2 = noiseField(r, 3), fb3 = noiseField(r, 4);
+    const lightAlbum = P.lum > .55;
+    const base = withL(P.main, lightAlbum ? .72 : .3), vein = lightAlbum ? withL(P.dark, .14) : withL(P.dark, .06), glow = withL(P.light, lightAlbum ? .92 : .62);
+    const ang = r() * Math.PI, ca = Math.cos(ang), sa = Math.sin(ang);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const u = i / N, v = j / N, ru = u * ca - v * sa, rv = u * sa + v * ca;
+      const n = fb(u * 2.2, v * 2.2), n2 = fb2(u * 3 + 3, v * 3 + 7), cloud = fb3(u * 2.4 + 9, v * 2.4 + 2);
+      const t1 = Math.abs(Math.sin((ru * 3 + rv * 1.1) * 3.1 + n * 7));
+      const t2 = Math.abs(Math.sin((rv * 4 - ru * 1.8) * 2.7 + n2 * 8));
+      const v1 = Math.pow(1 - Math.min(1, t1 / .3), 3) * .85, v2 = Math.pow(1 - Math.min(1, t2 / .14), 3) * .5;
+      const hl = Math.pow(1 - Math.min(1, Math.abs(Math.sin((ru + rv) * 6 + cloud * 7)) / .18), 3) * .35;
+      let c = mixc(base, mixc(base, [0,0,0], .6), Math.max(0, Math.min(1, (.62 - cloud) * 2.2 + .25)));
+      c = mixc(c, glow, hl); c = mixc(c, vein, Math.min(1, v1 * .9 + v2));
+      const k = (j * N + i) * 4; d[k] = c[0]; d[k+1] = c[1]; d[k+2] = c[2]; d[k+3] = 255;
+    }
+    ox.putImageData(im, 0, 0);
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(off, 0, 0, S, S);
+  }
+  function drawSplatter(x, S, P, r){
+    const R = S / 2, lightAlbum = P.lum > .5;
+    const base = withL(mixc(P.light, P.main, .35), lightAlbum ? .86 : .62);
+    x.fillStyle = rgba(base, 1); x.fillRect(0, 0, S, S);
+    const g = x.createRadialGradient(R * .7, R * .6, R * .1, R, R, R); g.addColorStop(0, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(0,0,0,.18)'); x.fillStyle = g; x.fillRect(0, 0, S, S);
+    const inks = [[withL(P.dark, .08), .62], [withL(P.vivid, .32), .16], [withL(P.second, lightAlbum ? .3 : .22), .12], [withL(P.light, .95), .1]];
+    const pick = () => { let t = r(); for (const [c, w] of inks) { if ((t -= w) <= 0) return c; } return inks[0][0]; };
+    const streak = (len, w, col, alpha, blur) => {
+      x.globalAlpha = alpha; x.fillStyle = rgba(col, 1);
+      if (blur) { x.shadowColor = rgba(col, 1); x.shadowBlur = blur; } else x.shadowBlur = 0;
+      x.beginPath(); x.moveTo(-len, 0); x.quadraticCurveTo(-len * .1, -w * .9, len * .85, -w);
+      x.arc(len * .85, 0, w, -Math.PI / 2, Math.PI / 2); x.quadraticCurveTo(-len * .1, w * .9, -len, 0); x.fill();
+    };
+    // soft light wisps under everything
+    for (let i = 0; i < 90; i++) {
+      const a = r() * Math.PI * 2, dist = R * (.42 + .52 * r());
+      x.save(); x.translate(R + Math.cos(a) * dist, R + Math.sin(a) * dist); x.rotate(a);
+      streak(R * (.03 + .08 * r()), R * (.008 + .01 * r()), withL(P.light, .96), .25 + r() * .2, S * .01);
+      x.restore();
+    }
+    const drops = Math.round(420 + r() * 180);
+    for (let i = 0; i < drops; i++) {
+      const a = r() * Math.PI * 2, dist = R * (.38 + .58 * Math.pow(r(), .75));
+      const len = R * (.012 + .15 * Math.pow(r(), 1.8)), w = R * (.0035 + .009 * Math.pow(r(), 1.5));
+      x.save(); x.translate(R + Math.cos(a) * dist, R + Math.sin(a) * dist); x.rotate(a + (r() - .5) * .08);
+      streak(len, w, pick(), .75 + r() * .25, 0);
+      x.restore();
+    }
+    x.globalAlpha = 1; x.shadowBlur = 0;
+    for (let i = 0; i < 220; i++) {
+      const a = r() * Math.PI * 2, dist = R * (.36 + .62 * r());
+      x.fillStyle = rgba(pick(), .6 + r() * .4); x.beginPath(); x.arc(R + Math.cos(a) * dist, R + Math.sin(a) * dist, R * (.002 + r() * .005), 0, Math.PI * 2); x.fill();
+    }
+  }
+  function drawGrooves(x, S, r, dark){
+    const R = S / 2, step = Math.max(1, S / 650);
+    x.lineWidth = Math.max(.6, S / 1400);
+    for (let rad = R * .36; rad < R * .975; rad += step) {
+      x.strokeStyle = r() < .5 ? 'rgba(0,0,0,' + (dark ? .35 : .08) * r() + ')' : 'rgba(255,255,255,' + (dark ? .05 : .05) * r() + ')';
+      x.beginPath(); x.arc(R, R, rad, 0, Math.PI * 2); x.stroke();
+    }
+    const tracks = 3 + Math.floor(r() * 4);
+    for (let i = 0; i < tracks; i++) {
+      const rad = R * (.42 + r() * .5);
+      x.lineWidth = S * .003; x.strokeStyle = dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.14)';
+      x.beginPath(); x.arc(R, R, rad, 0, Math.PI * 2); x.stroke();
+    }
+    x.lineWidth = S * .02; x.strokeStyle = dark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.12)'; x.beginPath(); x.arc(R, R, R * .345, 0, Math.PI * 2); x.stroke();
+    x.lineWidth = S * .012; x.strokeStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.arc(R, R, R * .992, 0, Math.PI * 2); x.stroke();
+    x.lineWidth = S * .003; x.strokeStyle = 'rgba(255,255,255,.18)'; x.beginPath(); x.arc(R, R, R * .978, 0, Math.PI * 2); x.stroke();
+  }
+  function drawDisc(){
+    const cv = $('disc'); if (!cv) return;
+    const css = record.clientWidth || 360, S = Math.min(1600, Math.round(css * Math.min(devicePixelRatio || 1, 2.5)));
+    if (cv.width !== S) cv.width = cv.height = S;
+    const x = cv.getContext('2d'), R = S / 2, r = rng(hashStr(state.art || state.id || 'vinyl'));
+    const P = palette || { main:[40,40,44], second:[90,90,96], vivid:[120,120,128], dark:[10,10,12], light:[200,200,205], lum:.2 };
+    const style = recordStyle();
+    document.body.dataset.record = style;
+    x.clearRect(0, 0, S, S); x.save(); x.beginPath(); x.arc(R, R, R, 0, Math.PI * 2); x.clip();
+    if (style === 'marble') drawMarble(x, S, P, r);
+    else if (style === 'splatter') drawSplatter(x, S, P, r);
+    else if (style === 'picture' && artImg && artImg.complete && artImg.naturalWidth) { x.drawImage(artImg, 0, 0, S, S); x.fillStyle = 'rgba(0,0,0,.08)'; x.fillRect(0, 0, S, S); }
+    else { x.fillStyle = '#0b0b0d'; x.fillRect(0, 0, S, S); }
+    drawGrooves(x, S, r, style === 'black');
+    x.restore();
+  }
+  addEventListener('resize', () => { clearTimeout(drawDisc.t); drawDisc.t = setTimeout(drawDisc, 200); });
 
   // ---------- UI ----------
   const record = $('record'), arm = $('arm'), label = $('label');
@@ -496,6 +613,8 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
       sleeve.replaceChildren(bg, fr);
       const jk = new Image(); jk.alt = 'Album cover'; jk.src = art; jacket.replaceChildren(jk);
     } else { sleeve.replaceChildren(); jacket.replaceChildren(); }
+    artImg = null;
+    if (art) { artImg = new Image(); artImg.onload = () => { if (recordStyle() === 'picture') drawDisc(); }; artImg.src = art; }
     renderLabel(); applyColors(art);
   }
   function swapRecord(){
@@ -542,6 +661,7 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
       const r = await api('GET', '/me/player/queue');
       if (!r.ok) { $('upnext').hidden = true; return; }
       const q = await r.json(); const n = q.queue && q.queue[0];
+      renderFlow((q.queue || []).slice(0, 3));
       if (!n) { $('upnext').hidden = true; return; }
       const imgs = n.album?.images || n.images || n.show?.images || [];
       const small = imgs[imgs.length - 1]?.url || imgs[0]?.url || '';
@@ -552,6 +672,18 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
     } catch { $('upnext').hidden = true; }
   }
   setInterval(() => { if (state.id && !document.hidden) loadQueue(); }, 20000);
+  function renderFlow(items){
+    $('flow').replaceChildren(...items.map((n, i) => {
+      const imgs = n.album?.images || n.images || n.show?.images || [];
+      const url = (imgs[1] || imgs[0] || {}).url || '';
+      const el = document.createElement('div'); el.className = 'spine';
+      el.innerHTML = (url ? '<img class="sbg" alt="" src="' + esc(url) + '"><img class="sart" alt="" src="' + esc(url) + '">' : '') +
+        '<div class="stxt"><b>' + esc(n.name) + '</b><span>' + esc(n.artists ? n.artists.map(a => a.name).join(', ') : (n.show?.name || '')) + '</span></div>';
+      el.setAttribute('role', 'button'); el.setAttribute('aria-label', 'Up next: ' + n.name + '. Tap to skip ahead.');
+      el.onclick = async () => { for (let k = 0; k <= i; k++) await control('POST', '/me/player/next'); };
+      return el;
+    }));
+  }
 
   function tick(){
     const live = state.playing ? state.progress + (performance.now() - state.at) : state.progress;
@@ -689,7 +821,7 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
   const SETTINGS = [
     { name:'Turntable', key:'deck', opts:[['walnut','Walnut'],['black','Matte black'],['white','White']] },
     { name:'Background', key:'bg', opts:[['album','Album colors'],['deck','Turntable']] },
-    { name:'Record', key:'record', opts:[['album','Album color'],['black','Classic black'],['picture','Picture disc']] },
+    { name:'Record', key:'record', opts:[['mix','Mix (varies by album)'],['splatter','Splatter'],['marble','Marble'],['black','Classic black'],['picture','Picture disc']] },
     { name:'Record label', key:'label', opts:[['printed','Song title'],['art','Album art']] },
     { name:'Spin speed', key:'rpm', opts:[['33','33⅓ RPM'],['45','45 RPM']] },
     { name:'Clock', key:'clock', opts:[['on','Show'],['off','Hide']] },
@@ -812,10 +944,16 @@ input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radiu
     if (segMQ.matches || postureMQ.matches) return true;
     return !!(navigator.devicePosture && navigator.devicePosture.type === 'folded' && innerHeight > innerWidth * 0.9);
   }
+  function setAppHeight(){
+    const h = Math.round(Math.max(innerHeight, (window.visualViewport && visualViewport.height) || 0));
+    document.documentElement.style.setProperty('--app-h', h + 'px');
+  }
+  if (window.visualViewport) visualViewport.addEventListener('resize', () => { setAppHeight(); applyFold(); });
   function applyFold(){
+    setAppHeight();
     const folded = foldMode === 'on' || (foldMode === 'auto' && deviceFolded());
     document.body.classList.toggle('folded', folded);
-    document.documentElement.style.setProperty('--hinge', (folded && hingeFromDevice()) || Math.round(innerHeight / 2) + 'px');
+    document.documentElement.style.setProperty('--hinge', (folded && hingeFromDevice()) || Math.round(Math.max(innerHeight, (window.visualViewport && visualViewport.height) || 0) / 2) + 'px');
     $('foldBtn').setAttribute('aria-pressed', String(folded));
     wakeUI();
   }
