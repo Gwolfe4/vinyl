@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Vinyl</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vinyl">
+<meta name="theme-color" content="#1a120c">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400&display=swap">
+<style>
+/* Layout: one screen. A walnut plinth fills the view; platter and tonearm sit on it, track info and controls below (beside it in landscape). */
+:root{
+  --wood-1:#5a3a22; --wood-2:#3f2715; --wood-3:#2a190d;
+  --ink:#f3e9dc; --ink-dim:#c9b8a4; --brass:#d4a55a; --brass-dark:#8a6630;
+  --vinyl:#0d0d0f; --danger:#ff8a7a;
+  --f-display:"Fraunces", Georgia, "Times New Roman", serif;
+  --f-body:"DM Sans", system-ui, -apple-system, sans-serif;
+  --f-mono:"DM Mono", ui-monospace, Menlo, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--wood-3); color:var(--ink); font-family:var(--f-body);
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+  -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;
+}
+[hidden]{display:none!important}
+.plinth{
+  position:fixed; inset:0;
+  padding:calc(env(safe-area-inset-top,0px) + 20px) max(20px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 20px) max(20px,env(safe-area-inset-left,0px));
+  background:
+    radial-gradient(120% 70% at 50% 30%, rgba(255,220,170,.10), transparent 60%),
+    repeating-linear-gradient(92deg, rgba(0,0,0,.0) 0 7px, rgba(0,0,0,.10) 7px 9px, rgba(255,255,255,.025) 9px 13px),
+    repeating-linear-gradient(88deg, rgba(0,0,0,.06) 0 31px, transparent 31px 53px),
+    linear-gradient(170deg, var(--wood-1), var(--wood-2) 55%, var(--wood-3));
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;
+}
+/* turntable */
+.deck{position:relative; width:min(92vw, 62vh, 560px); aspect-ratio:1/1; flex:none}
+.platter{
+  position:absolute; inset:2%; border-radius:50%;
+  background:radial-gradient(circle, #3a3a3e 0 60%, #1c1c1f 61% 100%);
+  box-shadow:0 18px 40px rgba(0,0,0,.55), inset 0 0 0 3px #4a4a50, inset 0 0 0 6px #1a1a1c;
+}
+.record{
+  position:absolute; inset:4%; border-radius:50%;
+  background:
+    radial-gradient(circle, transparent 0 33%, rgba(255,255,255,.035) 33.3%, transparent 34%),
+    repeating-radial-gradient(circle, #111114 0 1.1px, #070708 1.1px 2.3px),
+    var(--vinyl);
+  box-shadow:inset 0 0 0 2px #1d1d21, 0 0 0 1px #000;
+  animation:spin 1.8s linear infinite; animation-play-state:paused;
+}
+.record.playing{animation-play-state:running}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sheen{
+  position:absolute; inset:4%; border-radius:50%; pointer-events:none;
+  background:conic-gradient(from 20deg, transparent 0 8%, rgba(255,255,255,.10) 12%, transparent 18% 50%, rgba(255,255,255,.08) 62%, transparent 68%);
+  mix-blend-mode:screen;
+}
+.label{
+  position:absolute; inset:32%; border-radius:50%; overflow:hidden;
+  background:linear-gradient(135deg,#b3412d,#7a2618);
+  box-shadow:0 0 0 2px rgba(0,0,0,.6);
+  display:grid; place-items:center;
+}
+.label img{width:100%;height:100%;object-fit:cover;display:block}
+.label .blank{font-family:var(--f-display);font-weight:700;color:#f6dccb;font-size:clamp(14px,4vw,22px);letter-spacing:.04em;text-align:center;line-height:1.1}
+.label .blank small{display:block;font-family:var(--f-mono);font-weight:400;font-size:.45em;letter-spacing:.2em;margin-top:.4em;opacity:.8}
+.spindle{
+  position:absolute; left:50%; top:50%; width:3.2%; aspect-ratio:1; transform:translate(-50%,-50%); border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #f4f4f4, #8d8d8d 60%, #4a4a4a);
+  box-shadow:0 1px 2px rgba(0,0,0,.6);
+}
+.record.swap{animation:swapOut .45s ease-in forwards}
+@keyframes swapOut{to{transform:translateX(-120%) rotate(-120deg);opacity:0}}
+.record.swapin{animation:swapIn .5s ease-out}
+@keyframes swapIn{from{transform:translateX(120%) rotate(120deg);opacity:0}}
+
+/* tonearm: pivot at top right of deck */
+.arm{
+  position:absolute; right:-2%; top:-3%; width:22%; aspect-ratio:1; pointer-events:none;
+  transform-origin:50% 50%; transform:rotate(-16deg); transition:transform 1.1s cubic-bezier(.5,.1,.3,1);
+  z-index:3;
+}
+.arm.down{transform:rotate(4deg)}
+.arm .base{position:absolute; inset:12%; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%, #f0d39a, var(--brass) 45%, var(--brass-dark));
+  box-shadow:0 6px 14px rgba(0,0,0,.5), inset 0 0 0 4px rgba(0,0,0,.15)}
+.arm .cap{position:absolute; inset:34%; border-radius:50%; background:radial-gradient(circle at 40% 35%,#555,#151515)}
+.arm .rod{position:absolute; left:47%; top:50%; width:6%; height:290%; border-radius:4px;
+  background:linear-gradient(90deg,#9c9c9c,#f2f2f2 45%,#8a8a8a);
+  box-shadow:3px 4px 6px rgba(0,0,0,.45); transform-origin:50% 0; transform:rotate(14deg)}
+.arm .head{position:absolute; left:-90%; bottom:-14%; width:250%; height:9%; border-radius:3px;
+  background:linear-gradient(#2b2b2b,#111); transform:rotate(-22deg); box-shadow:2px 3px 5px rgba(0,0,0,.5)}
+
+/* info + controls */
+.panel{width:min(92vw,560px); display:flex; flex-direction:column; gap:14px; flex:none}
+.meta{min-width:0; text-align:center}
+.title{font-family:var(--f-display); font-weight:700; font-size:clamp(20px,5.6vw,30px); line-height:1.15; margin:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.artist{margin:4px 0 0; color:var(--ink-dim); font-size:clamp(14px,3.8vw,17px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.progress{display:flex; align-items:center; gap:10px; font-family:var(--f-mono); font-size:12px; color:var(--ink-dim); font-variant-numeric:tabular-nums}
+.bar{flex:1; height:4px; border-radius:2px; background:rgba(255,255,255,.15); overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--brass)}
+.controls{display:flex; justify-content:center; align-items:center; gap:28px}
+.btn{appearance:none; border:0; background:none; color:var(--ink); padding:8px; border-radius:50%; cursor:pointer; display:grid; place-items:center}
+.btn svg{width:30px;height:30px;fill:currentColor}
+.btn.play{width:68px;height:68px;background:radial-gradient(circle at 40% 30%,#f0d39a,var(--brass) 50%,var(--brass-dark)); color:#2a190d; box-shadow:0 6px 16px rgba(0,0,0,.45)}
+.btn.play svg{width:32px;height:32px}
+.btn:active{transform:scale(.94)}
+.btn:focus-visible{outline:2px solid var(--brass); outline-offset:3px}
+.status{min-height:1.2em; text-align:center; font-size:13px; color:var(--ink-dim)}
+.status.err{color:var(--danger)}
+.gear{position:fixed; top:calc(env(safe-area-inset-top,0px) + 10px); right:max(12px,env(safe-area-inset-right,0px)); z-index:5; opacity:.65}
+.gear svg{width:24px;height:24px}
+
+/* setup sheet */
+.sheet{position:fixed; inset:0; z-index:10; background:rgba(15,9,5,.86); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  overflow-y:auto; padding:calc(env(safe-area-inset-top,0px) + 28px) max(20px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 28px) max(20px,env(safe-area-inset-left,0px));
+  user-select:text; -webkit-user-select:text}
+.sheet .inner{max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:16px}
+.sheet h2{font-family:var(--f-display); font-size:28px; margin:0}
+.sheet p, .sheet li{line-height:1.5; color:var(--ink-dim); margin:0}
+.sheet ol{margin:0; padding-left:1.3em; display:flex; flex-direction:column; gap:10px}
+.sheet b{color:var(--ink)}
+.sheet a{color:var(--brass)}
+.copyrow{display:flex; gap:8px; align-items:stretch}
+.code{flex:1; min-width:0; font-family:var(--f-mono); font-size:13px; background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:10px; overflow-x:auto; white-space:nowrap; color:var(--ink)}
+input[type=text]{width:100%; font:16px var(--f-mono); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background:rgba(0,0,0,.4); color:var(--ink)}
+.cta{appearance:none; border:0; border-radius:999px; padding:14px 20px; font:700 16px var(--f-body); background:var(--brass); color:#2a190d; cursor:pointer}
+.ghost{appearance:none; border:1px solid rgba(255,255,255,.25); border-radius:8px; padding:8px 12px; font:500 14px var(--f-body); background:none; color:var(--ink); cursor:pointer}
+.row{display:flex; gap:10px; flex-wrap:wrap}
+
+@media (orientation:landscape) and (max-height:600px){
+  .plinth{flex-direction:row; gap:36px}
+  .deck{width:min(80vh,48vw)}
+  .panel{width:min(40vw,420px)}
+  .meta{text-align:left}
+}
+@media (prefers-reduced-motion:reduce){
+  .record.swap,.record.swapin{animation:none}
+  .arm{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="plinth">
+  <button class="btn gear" id="gear" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.3 2.9a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.6 7.6 0 0 0 1.7 1L11 21h4l.3-2.9a7.6 7.6 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>
+
+  <div class="deck">
+    <div class="platter"></div>
+    <div class="record" id="record">
+      <div class="label" id="label"><div class="blank">Vinyl<small>33⅓ RPM</small></div></div>
+    </div>
+    <div class="sheen"></div>
+    <div class="spindle"></div>
+    <div class="arm" id="arm"><div class="rod"><div class="head"></div></div><div class="base"></div><div class="cap"></div></div>
+  </div>
+
+  <section class="panel">
+    <div class="meta">
+      <h1 class="title" id="title">Nothing playing</h1>
+      <p class="artist" id="artist">Start a song in Spotify</p>
+    </div>
+    <div class="progress"><span id="pos">0:00</span><div class="bar"><i id="fill"></i></div><span id="dur">0:00</span></div>
+    <div class="controls">
+      <button class="btn" id="prev" aria-label="Previous track"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button class="btn play" id="play" aria-label="Play or pause"><svg viewBox="0 0 24 24" id="playIcon"><path d="M7 4v16l13-8z"/></svg></button>
+      <button class="btn" id="next" aria-label="Next track"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+    <div class="status" id="status"></div>
+  </section>
+</main>
+
+<div class="sheet" id="setup" hidden>
+  <div class="inner">
+    <h2>Connect Spotify</h2>
+    <p>This takes about five minutes, once. You only need your normal Spotify login.</p>
+    <ol>
+      <li>Open <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> and log in with Spotify. Accept the terms if asked.</li>
+      <li>Tap <b>Create app</b>. Name it <b>Vinyl</b>, and type anything for the description.</li>
+      <li>In <b>Redirect URIs</b>, paste this address and tap <b>Add</b>:
+        <div class="copyrow" style="margin-top:8px"><div class="code" id="redirect"></div><button class="ghost" id="copyRedirect">Copy</button></div>
+      </li>
+      <li>Under “Which API/SDKs are you planning to use?”, check <b>Web API</b>. Agree to the terms and tap <b>Save</b>.</li>
+      <li>Open the app's <b>Settings</b>, copy the <b>Client ID</b>, and paste it here:</li>
+    </ol>
+    <input type="text" id="clientId" placeholder="Client ID (32 letters and numbers)" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="cta" id="connect">Connect Spotify</button>
+    <p class="status err" id="setupErr"></p>
+    <div class="row" id="signedInRow" hidden>
+      <button class="ghost" id="logout">Sign out</button>
+      <button class="ghost" id="closeSetup">Close</button>
+    </div>
+    <p style="font-size:13px">Tip: in Safari, tap the Share button and choose <b>Add to Home Screen</b> to open Vinyl like an app.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const REDIRECT = location.origin + location.pathname;
+  const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state';
+  const store = {
+    get(k){ try { return localStorage.getItem('vinyl.'+k); } catch { return null; } },
+    set(k,v){ try { v == null ? localStorage.removeItem('vinyl.'+k) : localStorage.setItem('vinyl.'+k, v); } catch {} }
+  };
+
+  // ---------- auth (PKCE) ----------
+  const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  function randomString(n){ const a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0,n); }
+
+  async function login(){
+    const id = $('clientId').value.trim();
+    if (!/^[0-9a-f]{32}$/i.test(id)) { $('setupErr').textContent = 'That Client ID doesn\'t look right. It should be 32 letters and numbers, copied from your app\'s Settings page.'; return; }
+    store.set('clientId', id);
+    const verifier = randomString(64);
+    store.set('verifier', verifier);
+    const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+    const p = new URLSearchParams({ client_id:id, response_type:'code', redirect_uri:REDIRECT, scope:SCOPES, code_challenge_method:'S256', code_challenge:challenge });
+    location.href = 'https://accounts.spotify.com/authorize?' + p;
+  }
+
+  async function tokenRequest(body){
+    const r = await fetch('https://accounts.spotify.com/api/token', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error_description || j.error || ('HTTP '+r.status));
+    store.set('access', j.access_token);
+    store.set('expires', String(Date.now() + (j.expires_in - 60) * 1000));
+    if (j.refresh_token) store.set('refresh', j.refresh_token);
+  }
+
+  async function handleRedirect(){
+    const q = new URLSearchParams(location.search);
+    if (!q.has('code') && !q.has('error')) return;
+    history.replaceState(null, '', REDIRECT);
+    if (q.has('error')) { showSetup('Spotify said: ' + q.get('error') + '. Try connecting again.'); return; }
+    try {
+      await tokenRequest({ grant_type:'authorization_code', code:q.get('code'), redirect_uri:REDIRECT, client_id:store.get('clientId'), code_verifier:store.get('verifier') });
+      store.set('verifier', null);
+    } catch (e) { showSetup('Sign-in failed: ' + e.message + '. Check the Client ID and that the redirect address matches exactly.'); }
+  }
+
+  async function accessToken(){
+    if (store.get('access') && Date.now() < +store.get('expires')) return store.get('access');
+    if (!store.get('refresh')) return null;
+    try { await tokenRequest({ grant_type:'refresh_token', refresh_token:store.get('refresh'), client_id:store.get('clientId') }); return store.get('access'); }
+    catch { store.set('access', null); store.set('refresh', null); return null; }
+  }
+
+  async function api(method, path){
+    const t = await accessToken();
+    if (!t) { showSetup(); throw new Error('signed out'); }
+    const r = await fetch('https://api.spotify.com/v1' + path, { method, headers:{ Authorization:'Bearer ' + t } });
+    if (r.status === 401) { store.set('access', null); throw new Error('expired'); }
+    return r;
+  }
+
+  // ---------- UI ----------
+  const record = $('record'), arm = $('arm'), label = $('label');
+  let state = { id:null, playing:false, progress:0, duration:0, at:0 };
+
+  function fmt(ms){ ms = Math.max(0, ms|0); const s = Math.floor(ms/1000); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
+  function setStatus(msg, err){ $('status').textContent = msg || ''; $('status').classList.toggle('err', !!err); }
+  function setPlaying(p){
+    state.playing = p;
+    record.classList.toggle('playing', p);
+    arm.classList.toggle('down', p);
+    $('playIcon').innerHTML = p ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M7 4v16l13-8z"/>';
+  }
+  function blankLabel(){ label.innerHTML = '<div class="blank">Vinyl<small>33⅓ RPM</small></div>'; }
+
+  function swapRecord(art){
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const apply = () => {
+      if (art) { const img = new Image(); img.alt = ''; img.src = art; label.replaceChildren(img); } else blankLabel();
+    };
+    if (reduce || !state.id) { apply(); return; }
+    record.classList.add('swap');
+    setTimeout(() => {
+      apply(); record.classList.remove('swap'); record.classList.add('swapin');
+      setTimeout(() => record.classList.remove('swapin'), 520);
+    }, 450);
+  }
+
+  async function poll(){
+    if (document.hidden) return;
+    let r;
+    try { r = await api('GET', '/me/player?additional_types=episode'); } catch { return; }
+    if (r.status === 204) { show(null); return; }
+    if (r.status === 429) return;
+    if (!r.ok) { setStatus('Couldn\'t reach Spotify (error ' + r.status + ').', true); return; }
+    show(await r.json());
+  }
+
+  function show(d){
+    const item = d && d.item;
+    if (!item) {
+      if (state.id !== null) swapRecord(null);
+      state.id = null; setPlaying(false);
+      $('title').textContent = 'Nothing playing';
+      $('artist').textContent = 'Start a song in the Spotify app';
+      $('fill').style.width = '0%'; $('pos').textContent = $('dur').textContent = '0:00';
+      return;
+    }
+    const isEp = item.type === 'episode';
+    const imgs = isEp ? (item.images || item.show?.images || []) : (item.album?.images || []);
+    const art = imgs[0]?.url || null;
+    if (item.id !== state.id) { swapRecord(art); state.id = item.id; }
+    $('title').textContent = item.name;
+    $('artist').textContent = isEp ? (item.show?.name || '') : item.artists.map(a => a.name).join(', ');
+    state.progress = d.progress_ms || 0; state.duration = item.duration_ms || 0; state.at = performance.now();
+    setPlaying(!!d.is_playing);
+    setStatus('');
+  }
+
+  function tick(){
+    const pos = state.playing ? state.progress + (performance.now() - state.at) : state.progress;
+    if (state.duration) {
+      $('fill').style.width = Math.min(100, pos / state.duration * 100) + '%';
+      $('pos').textContent = fmt(Math.min(pos, state.duration)); $('dur').textContent = fmt(state.duration);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  async function control(method, path, optimistic){
+    if (optimistic) optimistic();
+    try {
+      const r = await api(method, path);
+      if (r.status === 403) setStatus('Controls need Spotify Premium. The record display still works.', true);
+      else if (r.status === 404) setStatus('Open the Spotify app and start a song first.', true);
+      else if (!r.ok && r.status !== 204) setStatus('Spotify didn\'t accept that (error ' + r.status + ').', true);
+    } catch {}
+    setTimeout(poll, 600);
+  }
+
+  $('play').onclick = () => state.playing
+    ? control('PUT', '/me/player/pause', () => { state.progress += performance.now() - state.at; state.at = performance.now(); setPlaying(false); })
+    : control('PUT', '/me/player/play', () => { state.at = performance.now(); setPlaying(true); });
+  $('next').onclick = () => control('POST', '/me/player/next');
+  $('prev').onclick = () => control('POST', '/me/player/previous');
+
+  // ---------- setup sheet ----------
+  function showSetup(err){
+    $('setup').hidden = false;
+    $('setupErr').textContent = err || '';
+    $('clientId').value = store.get('clientId') || '';
+    $('signedInRow').hidden = !store.get('refresh');
+  }
+  $('redirect').textContent = REDIRECT;
+  $('copyRedirect').onclick = async () => {
+    try { await navigator.clipboard.writeText(REDIRECT); $('copyRedirect').textContent = 'Copied'; }
+    catch { const s = getSelection(), rg = document.createRange(); rg.selectNodeContents($('redirect')); s.removeAllRanges(); s.addRange(rg); }
+  };
+  $('connect').onclick = login;
+  $('gear').onclick = () => showSetup();
+  $('closeSetup').onclick = () => { $('setup').hidden = true; };
+  $('logout').onclick = () => { ['access','refresh','expires'].forEach(k => store.set(k, null)); showSetup(); show(null); };
+
+  // keep the screen awake while showing
+  let lock = null;
+  async function wake(){ try { if ('wakeLock' in navigator && !document.hidden) lock = await navigator.wakeLock.request('screen'); } catch {} }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { wake(); poll(); } });
+
+  // ---------- start ----------
+  (async () => {
+    await handleRedirect();
+    if (!(await accessToken())) { if ($('setup').hidden) showSetup(); }
+    else { $('setup').hidden = true; poll(); }
+    setInterval(poll, 3000);
+    requestAnimationFrame(tick);
+    wake();
+  })();
+})();
+</script>
+</body>
+</html>
