@@ -107,14 +107,17 @@ body[data-record="picture"] .label{display:none}
 .btn{appearance:none; border:0; background:none; color:var(--ink); padding:8px; border-radius:50%; cursor:pointer; display:grid; place-items:center; position:relative}
 .btn svg{width:28px;height:28px;fill:currentColor}
 .btn.sm svg{width:24px;height:24px}
-.btn.toggle{opacity:.5} .btn.toggle.on{opacity:1; color:var(--accent)}
+.btn.toggle{opacity:.55}
+/* active toggles get a filled chip so they read clearly on any album background */
+.btn.toggle.on{opacity:1; color:var(--on-accent); background:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent), 0 4px 12px rgba(0,0,0,.35)}
+.btn.toggle.on .badge{color:var(--on-accent)}
 .btn .badge{position:absolute; right:2px; bottom:2px; font:700 10px/1 var(--f-body); color:var(--accent)}
 .btn .tag{position:absolute; left:50%; top:100%; transform:translateX(-50%); margin-top:-6px; font:500 10px/1 var(--f-mono); color:var(--accent); white-space:nowrap}
 .btn.play{width:64px;height:64px;background:radial-gradient(circle at 40% 30%,var(--accent-hi),var(--accent) 50%,var(--accent-lo)); color:var(--on-accent); box-shadow:0 6px 16px rgba(0,0,0,.4)}
 .btn.play svg{width:30px;height:30px}
 .btn:active{transform:scale(.94)}
 .btn:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
-.btn.toggle.heart.on{color:#ff5a6e; opacity:1}
+.btn.toggle.heart.on{color:#ff5a6e; opacity:1; background:none; box-shadow:none}
 .status{min-height:1.2em; text-align:center; font-size:13px; color:var(--ink-dim)}
 .status.err{color:var(--danger)}
 .upnext{display:flex; align-items:center; gap:10px; min-width:0; padding:8px 10px; border-radius:10px; background:var(--chip)}

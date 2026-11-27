@@ -115,7 +115,7 @@
           const vivid = (q.s > p.s ? q : p);
           const [h,s] = rgb2hsl(...vivid.col);
           const byL = list.slice(0, 12).slice().sort((a,b) => a.l - b.l);
-          const out = { c1:hex(p.col), c2:hex(q.col), c1d:hex(p.col.map(v => v*.45)), accent:hsl2hex(h, Math.min(.75, s + .1), .68), ink: p.l > .55 ? '#141414' : '#f1efea',
+          const out = { c1:hex(p.col), c2:hex(q.col), c1d:hex(p.col.map(v => v*.45)), accent: vivid.s < .18 ? '#e8b64c' : hsl2hex(h, Math.max(.6, Math.min(.85, s + .2)), .64), ink: p.l > .55 ? '#141414' : '#f1efea',
             pal:{ main:p.col, second:q.col, vivid:vivid.col, dark:byL[0].col, light:byL[byL.length-1].col, lum:list.reduce((t,e) => t + e.l*e.n, 0) / 1024 } };
           colorCache[url] = out; res(out);
         } catch { res(null); }
@@ -322,7 +322,7 @@
   }
   function show(d){
     const item = d && d.item;
-    if (d) { setShuffle(!!d.shuffle_state); setRepeat(d.repeat_state || 'off'); $('speaker').classList.toggle('on', !!(d.device && d.device.type !== 'Smartphone')); }
+    if (d) { setShuffle(!!d.shuffle_state, !!d.smart_shuffle); setRepeat(d.repeat_state || 'off'); $('speaker').classList.toggle('on', !!(d.device && d.device.type !== 'Smartphone')); }
     if (!item) {
       if (state.id !== null) { state.prevId = state.id; state.id = null; state.title = ''; state.artist = ''; state.art = null; swapRecord(); }
       setPlaying(false);
@@ -423,10 +423,15 @@
   $('prev').onclick = previous;
 
   // shuffle + repeat
-  function setShuffle(on){ state.shuffle = on; $('shuffle').classList.toggle('on', on); $('shuffle').setAttribute('aria-pressed', String(on)); }
+  function setShuffle(on, smart){
+    state.shuffle = on; $('shuffle').classList.toggle('on', on); $('shuffle').setAttribute('aria-pressed', String(on));
+    $('shuffle').setAttribute('aria-label', on ? (smart ? 'Smart Shuffle is on' : 'Shuffle is on') : 'Shuffle is off');
+  }
+  // Shuffle and repeat change what plays next, so drop the cached queue and fetch the new order once Spotify has applied it.
+  function refreshQueueSoon(){ queue = []; renderQueue(); clearTimeout(refreshQueueSoon.t); refreshQueueSoon.t = setTimeout(loadQueue, 1200); }
   function setRepeat(m){ state.repeat = m; $('repeat').classList.toggle('on', m !== 'off'); $('repeatOne').hidden = m !== 'track'; $('repeat').setAttribute('aria-label', 'Repeat: ' + ({ off:'off', context:'all', track:'this song' }[m])); }
-  $('shuffle').onclick = () => { const v = !state.shuffle; control('PUT', '/me/player/shuffle?state=' + v, () => setShuffle(v)); };
-  $('repeat').onclick = () => { const m = { off:'context', context:'track', track:'off' }[state.repeat]; control('PUT', '/me/player/repeat?state=' + m, () => setRepeat(m)); };
+  $('shuffle').onclick = async () => { const v = !state.shuffle; await control('PUT', '/me/player/shuffle?state=' + v, () => setShuffle(v)); flash(v ? 'Shuffle on' : 'Shuffle off'); refreshQueueSoon(); };
+  $('repeat').onclick = () => { const m = { off:'context', context:'track', track:'off' }[state.repeat]; control('PUT', '/me/player/repeat?state=' + m, () => setRepeat(m)).then(refreshQueueSoon); };
 
   // liked songs
   function setLiked(on){
@@ -519,7 +524,7 @@
   }
   async function startPlayback(body){
     const r = await api('PUT', '/me/player/play', body);
-    if (r.ok) { $('library').hidden = true; seq++; setTimeout(poll, 700); return; }
+    if (r.ok) { $('library').hidden = true; seq++; setTimeout(poll, 700); refreshQueueSoon(); return; }
     flash(r.status === 404 ? 'Open the Spotify app on this phone first, then try again.' : r.status === 403 ? 'Playing from the library needs Spotify Premium.' : 'Spotify couldn\'t start that (' + await apiError(r) + ').', true);
     $('libMsg').textContent = $('status').textContent;
   }
