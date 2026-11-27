@@ -263,24 +263,30 @@
     label.innerHTML = '<div class="printed"><div class="pt">' + esc(state.title || 'Vinyl') + '</div><div class="pa">' + esc(state.artist || '') +
       '</div><div class="gap"></div><div class="rpm">' + (prefs.rpm === '45' ? '45 RPM' : '33⅓ RPM') + ' · SIDE A</div></div>';
   }
-  function renderArt(){
+  // The cover (folded photo + landscape sleeve) updates right away; the record and colors follow its swap animation.
+  let coverReady = Promise.resolve();
+  function renderCover(){
+    const art = state.art, sleeve = $('sleeve'), jacket = $('jacket');
+    if (!art) { sleeve.replaceChildren(); jacket.replaceChildren(); coverReady = Promise.resolve(); return; }
+    const bg = new Image(); bg.alt = ''; bg.className = 'bg'; bg.src = art;
+    const fr = new Image(); fr.alt = 'Album cover'; fr.className = 'front'; fr.src = art;
+    const jk = new Image(); jk.alt = 'Album cover'; jk.src = art;
+    const ready = Promise.race([Promise.all([fr, jk].map(i => i.decode ? i.decode().catch(() => {}) : null)), new Promise(r => setTimeout(r, 700))]);
+    coverReady = ready.then(() => { if (state.art === art) { sleeve.replaceChildren(bg, fr); jacket.replaceChildren(jk); } });
+  }
+  function renderRecord(){
     const art = state.art;
-    const sleeve = $('sleeve'), jacket = $('jacket');
-    if (art) {
-      const bg = new Image(); bg.alt = ''; bg.className = 'bg'; bg.src = art;
-      const fr = new Image(); fr.alt = 'Album cover'; fr.className = 'front'; fr.src = art;
-      sleeve.replaceChildren(bg, fr);
-      const jk = new Image(); jk.alt = 'Album cover'; jk.src = art; jacket.replaceChildren(jk);
-    } else { sleeve.replaceChildren(); jacket.replaceChildren(); }
     artImg = null;
     if (art) { artImg = new Image(); artImg.onload = () => { if (recordStyle() === 'picture') drawDisc(); }; artImg.src = art; }
     renderLabel(); applyColors(art);
   }
+  function renderArt(){ renderCover(); renderRecord(); }
   function swapRecord(){
+    renderCover();
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce || !state.prevId) { renderArt(); return; }
+    if (reduce || !state.prevId) { renderRecord(); return; }
     record.classList.add('swap');
-    setTimeout(() => { renderArt(); record.classList.remove('swap'); record.classList.add('swapin'); setTimeout(() => record.classList.remove('swapin'), 520); }, 450);
+    setTimeout(() => { renderRecord(); record.classList.remove('swap'); record.classList.add('swapin'); setTimeout(() => record.classList.remove('swapin'), 520); }, 450);
   }
 
   // Every playback change bumps `seq`; a poll that started before the change is ignored.
@@ -636,8 +642,10 @@
   function slideIn(){
     if (!pendingSlide) return;
     const { el, dir } = pendingSlide; pendingSlide = null; clearTimeout(slideIn.t);
-    el.classList.add('dragging'); el.style.setProperty('--drag', -dir * innerWidth + 'px');
-    requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.remove('dragging'); el.style.setProperty('--drag', '0px'); }));
+    coverReady.then(() => {
+      el.classList.add('dragging'); el.style.setProperty('--drag', -dir * innerWidth + 'px');
+      requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.remove('dragging'); el.style.setProperty('--drag', '0px'); }));
+    });
   }
   function makeSwipe(el){
     let x0 = null, y0 = 0, horiz = null;
