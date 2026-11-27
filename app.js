@@ -83,7 +83,7 @@
     b.deck = prefs.deck; b.bg = prefs.bg; b.record = prefs.record; b.label = prefs.label;
     document.documentElement.style.setProperty('--spin', prefs.rpm === '45' ? '1.33s' : '1.8s');
     $('clock').hidden = prefs.clock !== 'on';
-    renderLabel(); clockTick(); drawDisc();
+    renderLabel(); clockTick(); drawDisc(); applyColors(state.art);
     store.set('prefs', JSON.stringify(prefs));
   }
 
@@ -132,7 +132,10 @@
     palette = v.pal; drawDisc();
     root.setProperty('--c1', v.c1); root.setProperty('--c2', v.c2); root.setProperty('--c1d', v.c1d);
     root.setProperty('--c-accent', v.accent); root.setProperty('--label-ink', v.ink);
-    const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = prefs.bg === 'album' ? v.c1d : '#111';
+    // Paint the page canvas too, so any area iOS leaves outside the app (e.g. mid-rotation) matches instead of showing black.
+    const ground = prefs.bg === 'album' ? v.c1d : prefs.deck === 'white' ? '#dedcd7' : '#111';
+    document.documentElement.style.background = ground;
+    const tc = document.querySelector('meta[name=theme-color]'); if (tc) tc.content = ground;
   }
 
   // ---------- the record itself, drawn on a canvas ----------
@@ -740,7 +743,7 @@
     return !!(navigator.devicePosture && navigator.devicePosture.type === 'folded' && innerHeight > innerWidth * 0.9);
   }
   function setAppHeight(){
-    const h = Math.round(Math.max(innerHeight, (window.visualViewport && visualViewport.height) || 0));
+    const h = Math.round(Math.max(innerHeight, document.documentElement.clientHeight, (window.visualViewport && visualViewport.height) || 0));
     document.documentElement.style.setProperty('--app-h', h + 'px');
   }
   if (window.visualViewport) visualViewport.addEventListener('resize', () => { setAppHeight(); applyFold(); });
@@ -759,6 +762,8 @@
   [segMQ, postureMQ].forEach(m => m.addEventListener && m.addEventListener('change', applyFold));
   if (navigator.devicePosture) navigator.devicePosture.addEventListener('change', applyFold);
   addEventListener('resize', applyFold);
+  // iOS can report the pre-rotation size for a moment; measure again once the rotation settles.
+  addEventListener('orientationchange', () => { [150, 500, 1000].forEach(ms => setTimeout(() => { applyFold(); drawDisc(); }, ms)); });
 
   // keep the screen awake while showing
   async function wake(){ try { if ('wakeLock' in navigator && !document.hidden) await navigator.wakeLock.request('screen'); } catch {} }
