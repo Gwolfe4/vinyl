@@ -109,8 +109,11 @@ body{
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .artist{margin:4px 0 0; color:var(--ink-dim); font-size:clamp(14px,3.8vw,17px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .progress{display:flex; align-items:center; gap:10px; font-family:var(--f-mono); font-size:12px; color:var(--ink-dim); font-variant-numeric:tabular-nums}
-.bar{flex:1; height:4px; border-radius:2px; background:rgba(255,255,255,.15); overflow:hidden}
-.bar i{display:block; height:100%; width:0; background:var(--brass)}
+.bar{flex:1; position:relative; height:4px; border-radius:2px; background:rgba(255,255,255,.15); cursor:pointer; touch-action:none; transition:height .15s}
+.bar::before{content:""; position:absolute; left:-8px; right:-8px; top:-18px; bottom:-18px}
+.bar i{display:block; height:100%; width:0; border-radius:2px; background:var(--brass); position:relative; pointer-events:none}
+.bar i::after{content:""; position:absolute; right:-7px; top:50%; width:14px; height:14px; margin-top:-7px; border-radius:50%; background:var(--ink); box-shadow:0 1px 4px rgba(0,0,0,.5); transform:scale(.6); transition:transform .15s}
+.bar.scrubbing{height:6px} .bar.scrubbing i::after{transform:scale(1.2)}
 .controls{display:flex; justify-content:center; align-items:center; gap:28px}
 .btn{appearance:none; border:0; background:none; color:var(--ink); padding:8px; border-radius:50%; cursor:pointer; display:grid; place-items:center}
 .btn svg{width:30px;height:30px;fill:currentColor}
@@ -208,7 +211,7 @@ body.pulsing .bar i{box-shadow:0 0 calc(var(--beat,0) * 12px) var(--brass)}
 
   <button class="btn foldbtn" id="foldBtn" aria-label="Folded layout" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 3h16v8H4zm2 2v4h12V5zM2 12h20l-2 9H4zm2.5 2 1.1 5h12.8l1.1-5z"/></svg></button>
 
-  <button class="btn beatbtn" id="beatBtn" aria-label="Pulse to the beat (uses microphone)" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2 12h4l2-6 4 13 3-9 2 2h5v2h-6l-1-1-3 9-4-13-1 3H2z"/></svg></button>
+  <button class="btn beatbtn" id="beatBtn" aria-label="Pulse to the beat" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2 12h4l2-6 4 13 3-9 2 2h5v2h-6l-1-1-3 9-4-13-1 3H2z"/></svg></button>
 
   <div class="cover" id="cover"><div class="sleeve" id="sleeve"><div class="blank">Vinyl</div></div><div class="swipehint" id="swipeHint">Swipe to change songs</div></div>
 
@@ -228,7 +231,7 @@ body.pulsing .bar i{box-shadow:0 0 calc(var(--beat,0) * 12px) var(--brass)}
       <h1 class="title" id="title">Nothing playing</h1>
       <p class="artist" id="artist">Start a song in Spotify</p>
     </div>
-    <div class="progress"><span id="pos">0:00</span><div class="bar"><i id="fill"></i></div><span id="dur">0:00</span></div>
+    <div class="progress"><span id="pos">0:00</span><div class="bar" id="bar" role="slider" aria-label="Song position" tabindex="0"><i id="fill"></i></div><span id="dur">0:00</span></div>
     <div class="controls">
       <button class="btn" id="prev" aria-label="Previous track"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
       <button class="btn play" id="play" aria-label="Play or pause"><svg viewBox="0 0 24 24" id="playIcon"><path d="M7 4v16l13-8z"/></svg></button>
@@ -378,7 +381,7 @@ body.pulsing .bar i{box-shadow:0 0 calc(var(--beat,0) * 12px) var(--brass)}
     const isEp = item.type === 'episode';
     const imgs = isEp ? (item.images || item.show?.images || []) : (item.album?.images || []);
     const art = imgs[0]?.url || null;
-    if (item.id !== state.id) { swapRecord(art); state.id = item.id; loadQueue(); }
+    if (item.id !== state.id) { swapRecord(art); state.id = item.id; loadQueue(); if (beat.on) loadTempo(item.id, isEp); }
     $('title').textContent = item.name;
     $('artist').textContent = isEp ? (item.show?.name || '') : item.artists.map(a => a.name).join(', ');
     state.progress = d.progress_ms || 0; state.duration = item.duration_ms || 0; state.at = performance.now();
@@ -404,8 +407,9 @@ body.pulsing .bar i{box-shadow:0 0 calc(var(--beat,0) * 12px) var(--brass)}
   setInterval(() => { if (state.id && !document.hidden) loadQueue(); }, 20000);
 
   function tick(){
-    beatFrame();
-    const pos = state.playing ? state.progress + (performance.now() - state.at) : state.progress;
+    const live = state.playing ? state.progress + (performance.now() - state.at) : state.progress;
+    beatFrame(live);
+    const pos = scrub.active ? scrub.pos : live;
     if (state.duration) {
       $('fill').style.width = Math.min(100, pos / state.duration * 100) + '%';
       $('pos').textContent = fmt(Math.min(pos, state.duration)); $('dur').textContent = fmt(state.duration);
@@ -475,45 +479,74 @@ body.pulsing .bar i{box-shadow:0 0 calc(var(--beat,0) * 12px) var(--brass)}
     if (store.get('swiped')) $('swipeHint').classList.add('gone');
   })();
 
-  // ---------- beat pulse (microphone) ----------
-  // Spotify no longer gives apps beat data, so listen to the room: bass energy spikes = beat.
-  let beat = { on:false, ctx:null, an:null, buf:null, avg:0, level:0, last:0, stream:null };
-  async function startBeat(){
+  // ---------- beat pulse (song tempo) ----------
+  // Spotify no longer shares tempo with new apps, so look the song up on ReccoBeats (free, no key)
+  // and pulse on that beat grid, timed from the song position. The microphone isn't used: on iPhone it stops other apps' audio.
+  let beat = { on:false, bpm:0, forId:null };
+  const tempoCache = {};
+  async function loadTempo(id, isEp){
+    beat.bpm = 0; beat.forId = id;
+    if (!id || isEp) return;
+    if (tempoCache[id] !== undefined) { beat.bpm = tempoCache[id]; return; }
     try {
-      beat.stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
-    } catch { setStatus('Microphone access was blocked. Allow it in Settings → Safari → Microphone to use the pulse.', true); return false; }
-    beat.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    await beat.ctx.resume();
-    const src = beat.ctx.createMediaStreamSource(beat.stream);
-    beat.an = beat.ctx.createAnalyser(); beat.an.fftSize = 1024; beat.an.smoothingTimeConstant = 0.2;
-    src.connect(beat.an);
-    beat.buf = new Uint8Array(beat.an.frequencyBinCount);
-    beat.on = true; document.body.classList.add('pulsing');
-    return true;
+      const r = await fetch('https://api.reccobeats.com/v1/audio-features?ids=' + encodeURIComponent(id), { headers:{ Accept:'application/json' } });
+      const j = await r.json();
+      const rec = (j.content && j.content[0]) || (Array.isArray(j) ? j[0] : j);
+      const bpm = rec && +rec.tempo;
+      tempoCache[id] = bpm > 40 && bpm < 250 ? bpm : 0;
+    } catch { tempoCache[id] = 0; }
+    if (beat.forId === id) {
+      beat.bpm = tempoCache[id];
+      if (!beat.bpm) { setStatus('No tempo found for this song, so the pulse is resting.'); setTimeout(() => setStatus(''), 3000); }
+    }
   }
-  function stopBeat(){
-    beat.on = false; document.body.classList.remove('pulsing');
-    document.documentElement.style.setProperty('--beat', 0);
-    try { beat.stream && beat.stream.getTracks().forEach(t => t.stop()); beat.ctx && beat.ctx.close(); } catch {}
-  }
-  function beatFrame(){
+  function beatFrame(posMs){
     if (!beat.on) return;
-    beat.an.getByteFrequencyData(beat.buf);
-    const hz = beat.ctx.sampleRate / beat.an.fftSize;
-    const hi = Math.max(2, Math.round(150 / hz));
-    let e = 0; for (let i = 1; i <= hi; i++) e += beat.buf[i];
-    e /= hi;
-    beat.avg = beat.avg * 0.95 + e * 0.05;
-    const now = performance.now();
-    if (e > 40 && e > beat.avg * 1.25 && now - beat.last > 260) { beat.level = 1; beat.last = now; }
-    beat.level *= 0.88;
-    document.documentElement.style.setProperty('--beat', beat.level.toFixed(3));
+    let level = 0;
+    if (beat.bpm && state.playing) {
+      const period = 60000 / beat.bpm;
+      const phase = (posMs % period) / period;
+      level = Math.pow(1 - phase, 4);
+    }
+    document.documentElement.style.setProperty('--beat', level.toFixed(3));
   }
-  $('beatBtn').onclick = async () => {
-    if (beat.on) { stopBeat(); store.set('beat', null); }
-    else if (await startBeat()) { store.set('beat', '1'); setStatus('Pulse is listening. Play music out loud through the speaker.'); setTimeout(() => setStatus(''), 3500); }
-    $('beatBtn').setAttribute('aria-pressed', String(beat.on));
+  function setBeat(on){
+    beat.on = on;
+    document.body.classList.toggle('pulsing', on);
+    $('beatBtn').setAttribute('aria-pressed', String(on));
+    if (on) loadTempo(state.id); else document.documentElement.style.setProperty('--beat', 0);
+  }
+  $('beatBtn').onclick = () => {
+    setBeat(!beat.on); store.set('beat', beat.on ? '1' : null);
+    setStatus(beat.on ? 'Pulse on. It follows the song\'s tempo.' : 'Pulse off.'); setTimeout(() => setStatus(''), 2500);
   };
+  if (store.get('beat')) setBeat(true);
+
+  // ---------- scrub the timeline ----------
+  const scrub = { active:false, pos:0 };
+  (() => {
+    const bar = $('bar');
+    const at = e => { const r = bar.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * state.duration; };
+    bar.addEventListener('pointerdown', e => {
+      if (!state.duration) return;
+      scrub.active = true; scrub.pos = at(e); bar.classList.add('scrubbing'); bar.setPointerCapture(e.pointerId);
+    });
+    bar.addEventListener('pointermove', e => { if (scrub.active) scrub.pos = at(e); });
+    const done = () => {
+      if (!scrub.active) return;
+      scrub.active = false; bar.classList.remove('scrubbing');
+      const ms = Math.round(scrub.pos);
+      state.progress = ms; state.at = performance.now();
+      control('PUT', '/me/player/seek?position_ms=' + ms);
+    };
+    bar.addEventListener('pointerup', done); bar.addEventListener('pointercancel', done);
+    bar.addEventListener('keydown', e => {
+      if (!state.duration || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      const live = state.playing ? state.progress + (performance.now() - state.at) : state.progress;
+      const ms = Math.max(0, Math.min(state.duration, live + (e.key === 'ArrowRight' ? 10000 : -10000)));
+      state.progress = ms; state.at = performance.now(); control('PUT', '/me/player/seek?position_ms=' + Math.round(ms));
+    });
+  })();
 
   // ---------- fold layout ----------
   // auto: follow the phone's hinge when the browser reports it; on/off: manual override
