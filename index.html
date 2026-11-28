@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400&display=swap">
-<link rel="stylesheet" href="styles.css?v=20261127i">
+<link rel="stylesheet" href="styles.css?v=20261128b">
 </head>
 <body data-deck="walnut" data-bg="album" data-record="mix" data-label="printed">
 <main class="plinth">
@@ -29,9 +29,9 @@
   <div class="lower">
     <div class="stage">
       <div class="jacket" id="jacket"></div>
-      <div class="deck" id="deck" role="button" aria-label="Tap the record to play or pause">
+      <div class="deck" id="deck" role="button" aria-label="Record. Tap to play or pause; press and hold to stop.">
         <div class="platter"></div>
-        <div class="record" id="record"><canvas id="disc"></canvas><div class="label" id="label"></div></div>
+        <div class="record" id="record"><div class="spinner" id="spinner"><canvas id="disc"></canvas><div class="label" id="label"></div></div></div>
         <div class="sheen"></div>
         <div class="spindle"></div>
         <div class="arm" id="arm"><div class="rod"><div class="head"></div></div><div class="base"></div><div class="cap"></div></div>
@@ -92,6 +92,7 @@
     <h3>Spotify</h3>
     <p>Reconnect after an update that adds features, such as saving songs to Liked Songs.</p>
     <div class="row"><button class="ghost" id="reconnect">Reconnect Spotify</button><button class="ghost" id="logout">Sign out</button></div>
+    <p class="screeninfo" id="screenInfo"></p>
   </div>
 </div>
 
@@ -114,6 +115,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20261127i"></script>
+<script src="app.js?v=20261128b"></script>
 </body>
 </html>

@@ -81,7 +81,6 @@
   function applyPrefs(){
     const b = document.body.dataset;
     b.deck = prefs.deck; b.bg = prefs.bg; b.record = prefs.record; b.label = prefs.label;
-    document.documentElement.style.setProperty('--spin', prefs.rpm === '45' ? '1.33s' : '1.8s');
     $('clock').hidden = prefs.clock !== 'on';
     renderLabel(); clockTick(); applyColors(state.art);   // applyColors redraws the record
     store.set('prefs', JSON.stringify(prefs));
@@ -391,8 +390,19 @@
   }
   function previous(){ seq++; control('POST', '/me/player/previous'); }
 
+  const spin = { angle:0, vel:0, last:performance.now(), brake:false };
+  function spinFrame(now){
+    const dt = Math.min(64, now - spin.last); spin.last = now;
+    const target = state.playing && !spin.brake ? 360 / (prefs.rpm === '45' ? 1333 : 1800) : 0;   // degrees per ms
+    const ease = spin.brake ? .012 : target > spin.vel ? .0035 : .003;                                // per-ms response
+    spin.vel += (target - spin.vel) * Math.min(1, ease * dt);
+    if (!target && Math.abs(spin.vel) < 2e-4) spin.vel = 0;
+    if (spin.vel) { spin.angle = (spin.angle + spin.vel * dt) % 360; $('spinner').style.transform = 'rotate(' + spin.angle.toFixed(2) + 'deg)'; }
+  }
   function tick(){
-    const live = state.playing ? state.progress + (performance.now() - state.at) : state.progress;
+    const now = performance.now();
+    spinFrame(now);
+    const live = state.playing ? state.progress + (now - state.at) : state.progress;
     beatFrame(live);
     const pos = scrub.active ? scrub.pos : live;
     if (state.duration) {
@@ -418,13 +428,69 @@
     if (!quiet) { clearTimeout(control.t); control.t = setTimeout(poll, 700); }
     return ok;
   }
-  function togglePlay(){
-    state.playing
-      ? control('PUT', '/me/player/pause', () => { state.progress += performance.now() - state.at; state.at = performance.now(); setPlaying(false); })
-      : control('PUT', '/me/player/play', () => { state.at = performance.now(); setPlaying(true); });
-  }
+  function togglePlay(){ state.playing ? pause() : play(); }
   $('play').onclick = togglePlay;
-  $('deck').onclick = togglePlay;
+  const pause = () => control('PUT', '/me/player/pause', () => { state.progress += performance.now() - state.at; state.at = performance.now(); setPlaying(false); });
+  const play = () => control('PUT', '/me/player/play', () => { state.at = performance.now(); setPlaying(true); });
+
+  // Press and hold the record: the platter brakes to a stop and the music pauses. A plain tap still toggles.
+  let suppressTap = false;
+  (() => {
+    const deck = $('deck'); let timer = null, x0 = 0, y0 = 0;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    deck.addEventListener('pointerdown', e => {
+      if (e.target.closest('.arm')) return;
+      x0 = e.clientX; y0 = e.clientY; cancel();
+      timer = setTimeout(() => {
+        timer = null; suppressTap = true;
+        if (state.playing) { spin.brake = true; pause(); flash('Stopped'); if (navigator.vibrate) navigator.vibrate(15); }
+      }, 380);
+    });
+    deck.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 12) cancel(); });
+    const up = () => { cancel(); spin.brake = false; };
+    deck.addEventListener('pointerup', up); deck.addEventListener('pointercancel', up); deck.addEventListener('pointerleave', up);
+    deck.addEventListener('contextmenu', e => e.preventDefault());
+    deck.addEventListener('click', e => {
+      if (e.target.closest('.arm')) return;
+      if (suppressTap) { suppressTap = false; return; }
+      togglePlay();
+    });
+  })();
+
+  // Grab the tonearm: lift it off the record to pause, set it down on the record to play.
+  (() => {
+    const arm = $('arm'), REST = -16, DOWN = 4, MIN = -26, MAX = 8;
+    let drag = null;
+    const angleAt = e => {
+      const r = arm.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      // the rod hangs straight down, rotated 14deg; CSS rotate() turns it clockwise toward the record
+      return Math.atan2(-(e.clientX - cx), e.clientY - cy) * 180 / Math.PI - 14;
+    };
+    const current = () => state.playing ? DOWN : REST;
+    arm.addEventListener('pointerdown', e => {
+      e.stopPropagation(); e.preventDefault();
+      drag = { start:angleAt(e), from:current(), angle:current(), moved:false };
+      arm.classList.add('dragging'); arm.setPointerCapture(e.pointerId);
+    });
+    arm.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const a = Math.max(MIN, Math.min(MAX, drag.from + angleAt(e) - drag.start));
+      if (Math.abs(a - drag.from) > 1.5) drag.moved = true;
+      drag.angle = a; arm.style.transform = 'rotate(' + a.toFixed(1) + 'deg)';
+    });
+    const release = () => {
+      if (!drag) return;
+      const { angle, moved } = drag; drag = null;
+      arm.classList.remove('dragging'); arm.style.transform = '';
+      suppressTap = true; setTimeout(() => { suppressTap = false; }, 350);   // don't let the release count as a tap on the record
+      if (!moved) { togglePlay(); return; }                                   // a tap on the arm toggles too
+      const onRecord = angle > (REST + DOWN) / 2;
+      if (onRecord && !state.playing) play();
+      else if (!onRecord && state.playing) pause();
+    };
+    arm.addEventListener('pointerup', release); arm.addEventListener('pointercancel', release);
+    arm.addEventListener('click', e => e.stopPropagation());
+  })();
   $('next').onclick = () => skip(1);
   $('prev').onclick = previous;
 
@@ -652,7 +718,7 @@
       wrap.appendChild(seg); return wrap;
     }));
   }
-  function openSettings(msg){ $('settings').hidden = false; $('settingsMsg').textContent = msg || ''; renderSettings(); }
+  function openSettings(msg){ $('settings').hidden = false; $('settingsMsg').textContent = msg || ''; renderSettings(); $('screenInfo').textContent = screenReport(); }
   $('gear').onclick = () => signedIn() ? openSettings() : showSetup();
   $('closeSettings').onclick = () => { $('settings').hidden = true; wakeUI(); };
   $('reconnect').onclick = () => { const id = store.get('clientId'); if (id) login(id); else { $('settings').hidden = true; showSetup('Paste your Client ID to connect again.'); } };
@@ -760,25 +826,42 @@
     if (segMQ.matches || postureMQ.matches) return true;
     return !!(navigator.devicePosture && navigator.devicePosture.type === 'folded' && innerHeight > innerWidth * 0.9);
   }
-  // iOS 26 Home Screen apps (WebKit bug 301108) can get a viewport shorter than the screen, leaving an unpainted strip
-  // at the bottom. In standalone mode, measure the shortfall against the real screen and extend the app by it.
+  // iOS 26 Home Screen apps (WebKit bug 301108) shorten the viewport while the page is shorter than the screen, and
+  // nothing is painted below that edge. Making the page itself screen-tall gets the full viewport back: CSS handles
+  // portrait (html.standalone min-height); --screen-h covers landscape, where the status-bar inset is 0.
   const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  if (standalone) {
+    document.documentElement.classList.add('standalone');
+    addEventListener('scroll', () => { if (scrollY) scrollTo(0, 0); }, { passive:true });   // the taller page must never scroll
+  }
+  function screenHeight(){
+    if (!screen.width || !screen.height) return 0;
+    return innerWidth > innerHeight ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+  }
   function setAppHeight(){
-    const vh = Math.round(Math.max(innerHeight, document.documentElement.clientHeight, (window.visualViewport && visualViewport.height) || 0));
-    let gap = 0;
-    if (standalone && screen.width && screen.height) {
-      const landscape = innerWidth > innerHeight;
-      const full = landscape ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
-      const shortfall = Math.round(full - vh);
-      if (shortfall > 0 && shortfall <= 160) gap = shortfall;   // cap: never trust a wild reading
+    const root = document.documentElement.style;
+    if (standalone) {
+      const full = screenHeight(), diff = full - innerHeight;
+      root.setProperty('--screen-h', diff >= 0 && diff <= 160 ? full + 'px' : '0px');   // never trust a wild reading
     }
-    document.documentElement.style.setProperty('--gap', gap + 'px');
-    document.documentElement.style.setProperty('--app-h', (vh + gap) + 'px');
-    return vh + gap;
+    const vh = Math.round(Math.max(innerHeight, document.documentElement.clientHeight, (window.visualViewport && visualViewport.height) || 0));
+    root.setProperty('--app-h', vh + 'px');
+    return vh;
+  }
+  function screenReport(){
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:0;bottom:0;left:0;width:1px;visibility:hidden;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)';
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe), fixedH = Math.round(probe.getBoundingClientRect().height);
+    const out = 'Screen check: window ' + innerWidth + '×' + innerHeight + ' · fixed layer ' + fixedH + ' · screen ' + screen.width + '×' + screen.height +
+      ' · page ' + document.documentElement.scrollHeight + ' · safe area ' + parseInt(cs.paddingTop) + '/' + parseInt(cs.paddingBottom) +
+      ' · ' + (standalone ? 'Home Screen app' : 'browser tab') + ' · v' + ((document.querySelector('script[src*="app.js"]') || {}).src || '').split('v=')[1];
+    probe.remove(); return out;
   }
   if (window.visualViewport) visualViewport.addEventListener('resize', () => { setAppHeight(); applyFold(); });
   function applyFold(){
     const fullH = setAppHeight();
+    if (standalone && !applyFold.again) { applyFold.again = true; requestAnimationFrame(() => setTimeout(() => { applyFold.again = false; setAppHeight(); }, 120)); }
     const folded = foldMode === 'on' || (foldMode === 'auto' && deviceFolded());
     document.body.classList.toggle('folded', folded);
     document.documentElement.style.setProperty('--hinge', (folded && hingeFromDevice()) || Math.round(fullH / 2) + 'px');
